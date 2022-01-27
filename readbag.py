@@ -19,6 +19,7 @@ parser = argparse.ArgumentParser(description="Read recorded bag file and display
                                 Remember to change the stream fps and format to match the recorded.")
 # Add argument which takes path to a bag file as an input
 parser.add_argument("-i", "--input", type=str, help="Path to the bag file")
+parser.add_argument("-f","--frame",type=int,help="Framerate")
 # Parse the command line arguments to an object
 args = parser.parse_args()
 # Safety if no parameter have been given
@@ -34,7 +35,8 @@ if os.path.splitext(args.input)[1] != ".bag":
 try:
     # Create pipeline
     pipeline = rs.pipeline()
-
+    framerate = args.frame
+    assert framerate%15==0
     # Create a config object
     config = rs.config()
 
@@ -44,20 +46,27 @@ try:
 
     # Configure the pipeline to stream the depth stream
     # Change this parameters according to the recorded bag file resolution
-    config.enable_stream(rs.stream.depth, rs.format.z16, 15)
+    config.enable_stream(rs.stream.depth, rs.format.z16, framerate)
 
     # Start streaming from file
     # pipeline.start(config)
     profile = pipeline.start(config)
     playback = profile.get_device().as_playback()
+
+    # To show it as real-time
+    # playback.set_real_time(True)
+
+    # Basically a fast-forwarded playback
     playback.set_real_time(False)
+
     # Create opencv window to render image in
     cv2.namedWindow("Depth Stream", cv2.WINDOW_AUTOSIZE)
     
     # Create colorizer object
     colorizer = rs.colorizer()
-    count = 0
     # Streaming loop
+
+    # Frame counting variables
     min_frame_num = 1000000
     max_frame_num = -1
     while True:
@@ -72,10 +81,7 @@ try:
             min_frame_num = frame_num
         if frame_num > max_frame_num:
             max_frame_num = frame_num
-        # if not frames:
-        #     playback.pause()
-        #     break
-        # Get depth frame
+
         depth_frame = frames.get_depth_frame()
         # Colorize depth frame to jet colormap
         depth_color_frame = colorizer.colorize(depth_frame)
@@ -90,7 +96,6 @@ try:
         if key == 27:
             cv2.destroyAllWindows()
             break
-        # print(count)
     print(max_frame_num-min_frame_num)
 finally:
     pass

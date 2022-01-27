@@ -1,5 +1,6 @@
 // License: Apache 2.0. See LICENSE file in root directory.
 // Copyright(c) 2017 Intel Corporation. All Rights Reserved.
+// Compilation Need OpenGL g++ record.cpp imgui/*.cpp -lrealsense2 -lglfw -lGL -lGLU -lGLEW -lglut
 
 #include <librealsense2/rs.hpp> // Include RealSense Cross Platform API
 #include "example.hpp"          // Include short list of convenience functions for rendering
@@ -15,16 +16,16 @@
 
 int width = 640;
 int height = 480;
+
+// Initial definitions, will be overwitten in function
 double time_run = 10;
-// Helper function for dispaying time conveniently
-std::string pretty_time(std::chrono::nanoseconds duration);
-// Helper function for rendering a seek bar
-// void draw_seek_bar(rs2::playback& playback, int* seek_pos, float2& location, float width);
 auto start = std::chrono::steady_clock::now();
 
 int main(int argc, char * argv[]) try
 {
-    // time_run=double(*argv[1]);
+    // Time in seconds
+    time_run=atof(argv[1]);
+    std::string bag_name = argv[2];
     // Create a simple OpenGL window for rendering:
     window app(width, height, "RealSense Record and Playback Example");
     ImGui_ImplGlfw_Init(app, false);
@@ -103,7 +104,8 @@ int main(int argc, char * argv[]) try
                     pipe->stop(); // Stop the pipeline with the default configuration
                     pipe = std::make_shared<rs2::pipeline>();
                     rs2::config cfg; // Declare a new configuration
-                    cfg.enable_record_to_file("a.bag");
+                    cfg.enable_stream(RS2_STREAM_DEPTH, width, height, RS2_FORMAT_Z16, 30);
+                    cfg.enable_record_to_file(bag_name);
                     pipe->start(cfg); //File will be opened at this point
                     device = pipe->get_active_profile().get_device();
                 }
@@ -120,13 +122,16 @@ int main(int argc, char * argv[]) try
             */
             if (device.as<rs2::recorder>())
             {
+                // Calculate time between start and now
                 std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - start);
                 // std::cout << "5" << '\n';
                 if (recording)
                 {
+                    std::string output = "Recording to file "+bag_name;
+                    const char *c = output.c_str();
                     // std::cout << "6" << '\n';
                     ImGui::SetCursorPos({ app.width() / 2 - 100, 3 * app.height() / 5 + 60 });
-                    ImGui::TextColored({ 255 / 255.f, 64 / 255.f, 54 / 255.f, 1 }, "Recording to file 'a.bag'");
+                    ImGui::TextColored({ 255 / 255.f, 64 / 255.f, 54 / 255.f, 1 }, c);
                 }
 
                 // Pause the playback if button is clicked
@@ -141,6 +146,7 @@ int main(int argc, char * argv[]) try
                 ImGui::SetCursorPos({ app.width() / 2 + 100, 3 * app.height() / 5 + 110 });
                 if (time_span.count()>time_run)
                 {
+                    // Recording for longer than specified time. Save bag
                     // std::cout << "8" << '\n';
                     pipe->stop(); // Stop the pipeline that holds the file and the recorder
                     pipe = std::make_shared<rs2::pipeline>(); //Reset the shared pointer with a new pipeline
@@ -152,67 +158,6 @@ int main(int argc, char * argv[]) try
                 }
             }
         }
-
-        // After a recording is done, we can play it
-        // if (recorded) {
-        //     std::cout << "9" << '\n';
-        //     ImGui::SetCursorPos({ app.width() / 2 - 100, 4 * app.height() / 5 + 30 });
-        //     ImGui::Text("Click 'play' to start playing");
-        //     ImGui::SetCursorPos({ app.width() / 2 - 100, 4 * app.height() / 5 + 50});
-        //     if (ImGui::Button("play", { 50, 50 }))
-        //     {
-        //         std::cout << "10" << '\n';
-        //         if (!device.as<rs2::playback>())
-        //         {
-        //             std::cout << "11" << '\n';
-        //             pipe->stop(); // Stop streaming with default configuration
-        //             pipe = std::make_shared<rs2::pipeline>();
-        //             rs2::config cfg;
-        //             cfg.enable_device_from_file("a.bag");
-        //             pipe->start(cfg); //File will be opened in read mode at this point
-        //             device = pipe->get_active_profile().get_device();
-        //         }
-        //         else
-        //         {
-        //             std::cout << "12" << '\n';
-        //             device.as<rs2::playback>().resume();
-        //         }
-        //     }
-        // }
-
-        // If device is playing a recording, we allow pause and stop
-        // if (device.as<rs2::playback>())
-        // {
-        //     std::cout << "13" << '\n';
-        //     rs2::playback playback = device.as<rs2::playback>();
-        //     if (pipe->poll_for_frames(&frames)) // Check if new frames are ready
-        //     {
-        //         std::cout << "14" << '\n';
-        //         depth = color_map.process(frames.get_depth_frame()); // Find and colorize the depth data for rendering
-        //     }
-
-        //     // Render a seek bar for the player
-        //     float2 location = { app.width() / 4, 4 * app.height() / 5 + 110 };
-        //     // draw_seek_bar(playback , &seek_pos, location, app.width() / 2);
-
-        //     ImGui::SetCursorPos({ app.width() / 2, 4 * app.height() / 5 + 50 });
-        //     if (ImGui::Button(" pause\nplaying", { 50, 50 }))
-        //     {
-        //         std::cout << "15" << '\n';
-        //         playback.pause();
-        //     }
-
-        //     ImGui::SetCursorPos({ app.width() / 2 + 100, 4 * app.height() / 5 + 50 });
-        //     if (ImGui::Button("  stop\nplaying", { 50, 50 }))
-        //     {
-        //         std::cout << "16" << '\n';
-        //         pipe->stop();
-        //         pipe = std::make_shared<rs2::pipeline>();
-        //         pipe->start();
-        //         device = pipe->get_active_profile().get_device();
-        //     }
-        // }
-
         ImGui::PopStyleColor(4);
         ImGui::PopStyleVar();
 
@@ -235,51 +180,3 @@ catch (const std::exception& e)
     std::cerr << e.what() << std::endl;
     return EXIT_FAILURE;
 }
-
-
-std::string pretty_time(std::chrono::nanoseconds duration)
-{
-    using namespace std::chrono;
-    auto hhh = duration_cast<hours>(duration);
-    duration -= hhh;
-    auto mm = duration_cast<minutes>(duration);
-    duration -= mm;
-    auto ss = duration_cast<seconds>(duration);
-    duration -= ss;
-    auto ms = duration_cast<milliseconds>(duration);
-
-    std::ostringstream stream;
-    stream << std::setfill('0') << std::setw(hhh.count() >= 10 ? 2 : 1) << hhh.count() << ':' <<
-        std::setfill('0') << std::setw(2) << mm.count() << ':' <<
-        std::setfill('0') << std::setw(2) << ss.count();
-    return stream.str();
-}
-
-
-// void draw_seek_bar(rs2::playback& playback, int* seek_pos, float2& location, float width)
-// {
-//     int64_t playback_total_duration = playback.get_duration().count();
-//     auto progress = playback.get_position();
-//     double part = (1.0 * progress) / playback_total_duration;
-//     *seek_pos = static_cast<int>(std::max(0.0, std::min(part, 1.0)) * 100);
-//     auto playback_status = playback.current_status();
-//     ImGui::PushItemWidth(width);
-//     ImGui::SetCursorPos({ location.x, location.y });
-//     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 12);
-//     if (ImGui::SliderInt("##seek bar", seek_pos, 0, 100, "", true))
-//     {
-//         //Seek was dragged
-//         if (playback_status != RS2_PLAYBACK_STATUS_STOPPED) //Ignore seek when playback is stopped
-//         {
-//             auto duration_db = std::chrono::duration_cast<std::chrono::duration<double, std::nano>>(playback.get_duration());
-//             auto single_percent = duration_db.count() / 100;
-//             auto seek_time = std::chrono::duration<double, std::nano>((*seek_pos) * single_percent);
-//             playback.seek(std::chrono::duration_cast<std::chrono::nanoseconds>(seek_time));
-//         }
-//     }
-//     std::string time_elapsed = pretty_time(std::chrono::nanoseconds(progress));
-//     ImGui::SetCursorPos({ location.x + width + 10, location.y });
-//     ImGui::Text("%s", time_elapsed.c_str());
-//     ImGui::PopStyleVar();
-//     ImGui::PopItemWidth();
-// }
